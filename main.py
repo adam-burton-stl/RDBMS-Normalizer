@@ -9,6 +9,34 @@ class FunctionalDependency:
     determinant: list[str]
     dependents: list[str]
 
+    def __init__(self, desc: str):
+        det, deps = desc.split(" -> ")
+        if det[0] == "{" and det[-1] == "}":
+            det = det[1:-1].split(", ")
+        else:
+            print("Error: Determinant must be surrounded by brackets.")
+            sys.exit()
+        deps = deps[:-1]
+        if deps[0] == "{" and deps[-1] == "}":
+            deps = deps[1:-1].split(", ")
+        else:
+            print("Error: Dependents must be surrounded by brackets.")
+            sys.exit()
+        print("Det:", det)
+        print("Deps:", deps)
+        self.determinant = det
+        self.dependents = deps
+
+    def __str__(self):
+        output = "{"
+        for det in self.determinant[:-1]:
+            output += det + ", "
+        output += self.determinant[-1] + "} -> {"
+        for dep in self.dependents[:-1]:
+            output += dep + ", "
+        output += self.dependents[-1] + "}"
+        return output
+
 
 class Relation:
     name: str
@@ -108,3 +136,8 @@ if __name__ == "__main__":
     print("Entering First normal form...")
     tables[0].one_nf()
     print(tables[0])
+
+    new_FD = "{primary, another} -> {nonPrime, otherAttr}\n"
+    print("Testing fds: ")
+    realFD = FunctionalDependency(new_FD)
+    print(realFD)
