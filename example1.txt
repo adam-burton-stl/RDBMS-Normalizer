@@ -1,0 +1,5 @@
+Table: CoffeeShopData
+Attributes: OrderID, Date, PromocodeUsed, TotalCost, TotalDrinkCost, TotalFoodCost, CustomerID, CustomerName, DrinkID, DrinkName, DrinkSize, DrinkQuantity, Milk, DrinkIngredient, DrinkAllergen, FoodID, FoodName, FoodQuantity, FoodIngredient, FoodAllergen
+Primary Key: {OrderID, DrinkID, FoodID}
+Candidate Keys: {OrderID}, {PromocodeUsed, TotalCost}
+Multi-Valued Attributes: PromocodeUsed, DrinkIngredient, DrinkAllergen, FoodIngredient, FoodAllergen
