@@ -53,13 +53,12 @@ Functional Dependencies:
 
 
 Relation: OrderIDData
-Attributes: [['OrderID', 'INTEGER'], ['Date', 'DATE'], ['TotalCost', 'MONEY'], ['TotalDrinkCost', 'MONEY'], ['TotalFoodCost', 'MONEY'], ['CustomerID', 'INTEGER'], ['CustomerName', 'VARCHAR(255)']]
+Attributes: [['OrderID', 'INTEGER'], ['Date', 'DATE'], ['TotalCost', 'MONEY'], ['TotalDrinkCost', 'MONEY'], ['TotalFoodCost', 'MONEY'], ['CustomerID', 'INTEGER']]
 Primary Key: ['OrderID']
 Candidate Keys: []
 Multi-Valued Attributes: []
 Functional Dependencies:
 {OrderID} -> {Date, TotalCost, TotalDrinkCost, TotalFoodCost, CustomerID, CustomerName}
-{CustomerID} -> {CustomerName}
 
 
 Relation: OrderIDDrinkIDData
@@ -68,7 +67,7 @@ Primary Key: ['OrderID', 'DrinkID']
 Candidate Keys: []
 Multi-Valued Attributes: []
 Functional Dependencies:
-{OrderID, DrinkID} -> {DrinkName, DrinkSize, DrinkQuantity, Milk}
+{OrderID, DrinkID} -> {DrinkSize, DrinkQuantity, Milk}
 
 
 Relation: OrderIDFoodIDData
@@ -77,7 +76,7 @@ Primary Key: ['OrderID', 'FoodID']
 Candidate Keys: []
 Multi-Valued Attributes: []
 Functional Dependencies:
-{OrderID, FoodID} -> {FoodName, FoodQuantity}
+{OrderID, FoodID} -> {FoodQuantity}
 
 
 Relation: DrinkIDData
@@ -96,5 +95,14 @@ Candidate Keys: []
 Multi-Valued Attributes: []
 Functional Dependencies:
 {FoodID} -> {FoodName}
+
+
+Relation: CustomerNameData
+Attributes: [['CustomerID', 'INTEGER'], ['CustomerName', 'VARCHAR(255)']]
+Primary Key: ['CustomerID']
+Candidate Keys: []
+Multi-Valued Attributes: []
+Functional Dependencies:
+N/A
 
 

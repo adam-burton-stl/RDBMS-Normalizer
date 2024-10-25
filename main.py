@@ -116,6 +116,7 @@ class Relation:
     def two_nf(self):
         new_tables = []
         fds_to_remove = []
+        removed_attributes = []
         # print("-" * 50)
         # print(f"From:\n{self}")
 
@@ -145,9 +146,10 @@ class Relation:
                             loc = [x[0] for x in self.attributes].index(new_attrs[j])
                             new_attrs[j] = [new_attrs[j], self.attributes[loc][1]]
                             if new_attrs[j][0] not in self.primary_key:
-                                # print(
-                                #     f"removing attribute {self.attributes[loc]} from {self.name}"
-                                # )
+                                print(
+                                    f"removing attribute {self.attributes[loc]} from {self.name}"
+                                )
+                                removed_attributes.append(self.attributes[loc])
                                 self.attributes.pop(loc)
 
                         new_fds = [self.fds[i]]
@@ -186,6 +188,14 @@ class Relation:
         fds_to_remove.sort(reverse=True)
         for i in range(len(fds_to_remove)):
             self.fds.pop(fds_to_remove[i])
+
+        print(f"Relation {self.name} - Total removed attributes:", removed_attributes)
+        for i in range(len(removed_attributes)):
+            for j in range(len(self.fds)):
+                if removed_attributes[i][0] in self.fds[j].dependents:
+                    print(f"Removing {removed_attributes[i]} from {self.fds[j]}")
+                    self.fds[j].remove_dep(removed_attributes[i][0])
+
         # print("Created:")
         # for i in range(len(new_tables)):
         #     print(new_tables[i])
@@ -196,15 +206,50 @@ class Relation:
         new_tables = []
         all_dets = []
         all_deps = []
+        fds_to_pop = []
         for fd in self.fds:
             all_dets += fd.determinant
             all_deps += fd.dependents
-        for fd in self.fds:
-            for fd_dep in fd.dependents:
-                if fd_dep in all_dets:
+        for i in range(len(self.fds)):
+            is_transitive = False
+            for fd_det in self.fds[i].determinant:
+                if fd_det in all_deps:
                     print(
-                        f"!!!!!!Found transitive dependency from {fd_dep} in {self.name}"
+                        f"!!!!!!Found transitive dependency from {fd_det} in {self.name}"
                     )
+                    is_transitive = True
+            if is_transitive:
+                new_name = ""
+                for dep in self.fds[i].dependents:
+                    new_name += dep
+                new_name += "Data"
+                print(f"Creating new relation {new_name}")
+                new_attrs = self.fds[i].determinant[:]
+                new_attrs += self.fds[i].dependents[:]
+                for j in range(len(new_attrs)):
+                    loc = [x[0] for x in self.attributes].index(new_attrs[j])
+                    new_attrs[j] = [new_attrs[j], self.attributes[loc][1]]
+                print(f"Contains attributes: {new_attrs}")
+                new_tables.append(
+                    Relation(
+                        name=new_name,
+                        attrs=new_attrs,
+                        prim_key=self.fds[i].determinant[:],
+                        can_keys=[],
+                        mv_attrs=[],
+                        fds=[],
+                    )
+                )
+                for fd_dep in self.fds[i].dependents:
+                    print(
+                        "popping:",
+                        self.attributes.pop(
+                            [x[0] for x in self.attributes].index(fd_dep)
+                        ),
+                    )
+                fds_to_pop.append(i)
+        for i in fds_to_pop[::-1]:
+            self.fds.pop(i)
         return new_tables
 
 
