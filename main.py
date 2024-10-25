@@ -251,6 +251,8 @@ def interpret_input(filename: str) -> Relation:
     fds: list[FunctionalDependency] = []
     if schema.readline()[:24] == "Functional Dependencies:":
         while fd := schema.readline():
+            if fd == "N/A":
+                break
             det, deps = fd.split(" -> ")
             if det[0] == "{" and det[-1] == "}":
                 det = det[1:-1].split(", ")
@@ -271,6 +273,8 @@ def interpret_input(filename: str) -> Relation:
 
 def output_results(filename, tables):
     dest = open(filename, "w")
+    for i in range(len(tables)):
+        dest.write(str(tables[i]) + "\n\n")
     dest.close()
 
 
@@ -309,6 +313,6 @@ if __name__ == "__main__":
             tables += new_tables
 
     output_name = "normalized_schema.txt"
-    if sys.argv > 2:
+    if len(sys.argv) > 2:
         output_name = sys.argv[3]
     output_results(output_name, tables)
