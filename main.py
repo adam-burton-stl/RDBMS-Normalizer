@@ -9,25 +9,21 @@ class FunctionalDependency:
     determinant: list[str]
     dependents: list[str]
 
-    def __init__(self, desc: str):
-        det, deps = desc.split(" -> ")
-        if det[0] == "{" and det[-1] == "}":
-            det = det[1:-1].split(", ")
-        else:
-            print("Error: Determinant must be surrounded by brackets.")
-            sys.exit()
-        deps = deps[:-1]
-        if deps[0] == "{" and deps[-1] == "}":
-            deps = deps[1:-1].split(", ")
-        else:
-            print("Error: Dependents must be surrounded by brackets.")
-            sys.exit()
-        print("Det:", det)
-        print("Deps:", deps)
+    def __init__(self, det: list[str], deps: list[str]):
         self.determinant = det
         self.dependents = deps
 
+    def is_dep(self, attr):
+        if attr in self.dependents:
+            return True
+        else:
+            return False
+
+    def remove_dep(self, attr):
+        self.dependents.remove(attr)
+
     def __str__(self):
+        """Pretty print of FunctionalDependency"""
         output = "{"
         for det in self.determinant[:-1]:
             output += det + ", "
@@ -74,25 +70,44 @@ class Relation:
         return result
 
     def one_nf(self):
+        """Convert the relation into 1NF by separating all multivalued attributes into their own tables (which are returned)."""
         new_tables: list[Relation] = []
         for i in range(len(self.multivalued_attributes)):
             if self.multivalued_attributes[i] in [x[0] for x in self.attributes]:
                 new_title = self.multivalued_attributes[i] + "Data"
                 new_attrs = self.primary_key[:]
                 new_attrs.append(self.multivalued_attributes[i])
-                for i in range(len(new_attrs)):
-                    loc = [x[0] for x in self.attributes].index(new_attrs[i])
-                    new_attrs[i] = [new_attrs[i], self.attributes[loc][1]]
-                    if new_attrs[i][0] in self.multivalued_attributes:
+                for j in range(len(new_attrs)):
+                    loc = [x[0] for x in self.attributes].index(new_attrs[j])
+                    new_attrs[j] = [new_attrs[j], self.attributes[loc][1]]
+                    if new_attrs[j][0] == self.multivalued_attributes[i]:
                         self.attributes.pop(loc)
+                new_fds = []
+                for j in range(len(self.fds)):
+                    if self.fds[j].is_dep(self.multivalued_attributes[i]):
+                        new_fds.append(
+                            FunctionalDependency(
+                                self.fds[j].determinant,
+                                [self.multivalued_attributes[i]],
+                            )
+                        )
+                        self.fds[j].remove_dep(self.multivalued_attributes[i])
                 new_tables.append(
-                    Relation(new_title, new_attrs, self.primary_key[:], [], [])
+                    Relation(
+                        new_title,
+                        new_attrs,
+                        self.primary_key[:],
+                        can_keys=[],
+                        mv_attrs=[],
+                        fds=new_fds,
+                    )
                 )
         self.multivalued_attributes = []
         return new_tables
 
 
 def interpret_input(filename: str) -> Relation:
+    """Read the contents of the given file and create a corresponding Relation class instance."""
     schema = open(input_filename, "r")
     name = schema.readline().split()[1]
     if len(name) < 1:
@@ -134,11 +149,19 @@ def interpret_input(filename: str) -> Relation:
     fds: list[FunctionalDependency] = []
     if schema.readline()[:24] == "Functional Dependencies:":
         while fd := schema.readline():
-            # fd = fd[1:-1].split(" -> ")
-            # fd = [attributes.split(", ") for attributes in fd]
-            fds.append(FunctionalDependency(fd))
-    for i in range(len(fds)):
-        print(fds[i])
+            det, deps = fd.split(" -> ")
+            if det[0] == "{" and det[-1] == "}":
+                det = det[1:-1].split(", ")
+            else:
+                print("Error: Determinant must be surrounded by brackets.")
+                sys.exit()
+            deps = deps[:-1]
+            if deps[0] == "{" and deps[-1] == "}":
+                deps = deps[1:-1].split(", ")
+            else:
+                print("Error: Dependents must be surrounded by brackets.")
+                sys.exit()
+            fds.append(FunctionalDependency(det, deps))
     schema.close()
     table = Relation(name, attributes, primary_key, candidate_keys, mv_attrs, fds=fds)
     return table
@@ -159,5 +182,6 @@ if __name__ == "__main__":
     tables.append(interpret_input(input_filename))
     print(tables[0])
     print("Entering First normal form...")
-    tables[0].one_nf()
-    print(tables[0])
+    tables += tables[0].one_nf()
+    for i in range(len(tables)):
+        print(tables[i])
