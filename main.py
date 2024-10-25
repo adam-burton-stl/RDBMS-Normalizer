@@ -44,16 +44,18 @@ class Relation:
     primary_key: list[str]
     candidate_keys: list[list[str]]
     multivalued_attributes: list[str]
-    FDs: list[FunctionalDependency]
+    fds: list[FunctionalDependency]
 
-    def __init__(self, name, attrs, prim_key, can_keys, mv_attrs):
+    def __init__(self, name, attrs, prim_key, can_keys, mv_attrs, fds=[]):
         self.name = name
         self.attributes = attrs
         self.primary_key = prim_key
         self.candidate_keys = can_keys
         self.multivalued_attributes = mv_attrs
+        self.fds = fds
 
     def __str__(self):
+        """Pretty print of Relation"""
         result = "Relation: " + self.name + "\n"
         result += "Attributes: " + str(self.attributes) + "\n"
         result += "Primary Key: " + str(self.primary_key) + "\n"
@@ -62,7 +64,13 @@ class Relation:
             + (str(self.candidate_keys) if str(self.candidate_keys) else "None")
             + "\n"
         )
-        result += "Multi-Valued Attributes: " + str(self.multivalued_attributes)
+        result += "Multi-Valued Attributes: " + str(self.multivalued_attributes) + "\n"
+        result += "Functional Dependencies:\n"
+        if self.fds == []:
+            result += "N/A\n"
+        else:
+            for i in range(len(self.fds)):
+                result += str(self.fds[i]) + "\n"
         return result
 
     def one_nf(self):
@@ -123,8 +131,16 @@ def interpret_input(filename: str) -> Relation:
         sys.exit()
 
     mv_attrs = schema.readline()[25:-1].split(", ")
+    fds: list[FunctionalDependency] = []
+    if schema.readline()[:24] == "Functional Dependencies:":
+        while fd := schema.readline():
+            # fd = fd[1:-1].split(" -> ")
+            # fd = [attributes.split(", ") for attributes in fd]
+            fds.append(FunctionalDependency(fd))
+    for i in range(len(fds)):
+        print(fds[i])
     schema.close()
-    table = Relation(name, attributes, primary_key, candidate_keys, mv_attrs)
+    table = Relation(name, attributes, primary_key, candidate_keys, mv_attrs, fds=fds)
     return table
 
 
@@ -145,8 +161,3 @@ if __name__ == "__main__":
     print("Entering First normal form...")
     tables[0].one_nf()
     print(tables[0])
-
-    new_FD = "{primary, another} -> {nonPrime, otherAttr}\n"
-    print("Testing fds: ")
-    realFD = FunctionalDependency(new_FD)
-    print(realFD)
