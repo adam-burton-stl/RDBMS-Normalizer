@@ -22,6 +22,12 @@ class FunctionalDependency:
     def remove_dep(self, attr):
         self.dependents.remove(attr)
 
+    def det_contains(self, attrs):
+        for i in range(len(attrs)):
+            if attrs[i] in self.determinant:
+                return True
+        return False
+
     def __str__(self):
         """Pretty print of FunctionalDependency"""
         output = "{"
@@ -82,6 +88,8 @@ class Relation:
                     new_attrs[j] = [new_attrs[j], self.attributes[loc][1]]
                     if new_attrs[j][0] == self.multivalued_attributes[i]:
                         self.attributes.pop(loc)
+                new_prim = self.primary_key[:]
+                new_prim.append(self.multivalued_attributes[i])
                 new_fds = []
                 for j in range(len(self.fds)):
                     if self.fds[j].is_dep(self.multivalued_attributes[i]):
@@ -96,13 +104,107 @@ class Relation:
                     Relation(
                         new_title,
                         new_attrs,
-                        self.primary_key[:],
+                        new_prim,
                         can_keys=[],
                         mv_attrs=[],
                         fds=new_fds,
                     )
                 )
         self.multivalued_attributes = []
+        return new_tables
+
+    def two_nf(self):
+        new_tables = []
+        fds_to_remove = []
+        # print("-" * 50)
+        # print(f"From:\n{self}")
+
+        for i in range(len(self.fds)):
+            affected_attrs = []
+            if (
+                self.fds[i].det_contains(self.primary_key)
+                and self.fds[i].determinant != self.primary_key
+            ):
+                try:
+                    for dep in self.fds[i].dependents:
+                        if dep not in self.primary_key:
+                            affected_attrs.append(dep)
+                            # print(
+                            #     f"!!! PFD DETECTED in {self.name} for attribute {dep}!!!"
+                            # )
+                    if len(affected_attrs):
+                        new_name = ""
+                        for det in self.fds[i].determinant:
+                            new_name += det
+                        new_name += "Data"
+                        # print(f"Creating new relation {new_name}")
+                        new_attrs = self.fds[i].determinant[:]
+                        new_attrs += affected_attrs
+                        # print(f"Contains attributes: {new_attrs}")
+                        for j in range(len(new_attrs)):
+                            loc = [x[0] for x in self.attributes].index(new_attrs[j])
+                            new_attrs[j] = [new_attrs[j], self.attributes[loc][1]]
+                            if new_attrs[j][0] not in self.primary_key:
+                                # print(
+                                #     f"removing attribute {self.attributes[loc]} from {self.name}"
+                                # )
+                                self.attributes.pop(loc)
+
+                        new_fds = [self.fds[i]]
+                        for fd in self.fds[:i] + self.fds[i + 1 :]:
+                            print("testing", str(fd))
+                            for attr in affected_attrs:
+                                if fd.det_contains([attr]) or (
+                                    attr in fd.dependents
+                                    and (
+                                        False
+                                        not in [
+                                            (x in [y[0] for y in new_attrs])
+                                            for x in fd.determinant
+                                        ]
+                                    )
+                                ):
+                                    new_fds.append(fd)
+                                    fds_to_remove.append(self.fds.index(fd))
+                                    print(
+                                        f"Transferring {str(fd)} from {self.name} to {new_name}"
+                                    )
+                                    break
+                        new_tables.append(
+                            Relation(
+                                name=new_name,
+                                attrs=new_attrs,
+                                prim_key=self.fds[i].determinant[:],
+                                can_keys=[],
+                                mv_attrs=[],
+                                fds=new_fds,
+                            )
+                        )
+                        fds_to_remove.append(i)
+                except:
+                    print(end="")
+        fds_to_remove.sort(reverse=True)
+        for i in range(len(fds_to_remove)):
+            self.fds.pop(fds_to_remove[i])
+        # print("Created:")
+        # for i in range(len(new_tables)):
+        #     print(new_tables[i])
+        # print("-" * 50)
+        return new_tables
+
+    def three_nf(self):
+        new_tables = []
+        all_dets = []
+        all_deps = []
+        for fd in self.fds:
+            all_dets += fd.determinant
+            all_deps += fd.dependents
+        for fd in self.fds:
+            for fd_dep in fd.dependents:
+                if fd_dep in all_dets:
+                    print(
+                        f"!!!!!!Found transitive dependency from {fd_dep} in {self.name}"
+                    )
         return new_tables
 
 
@@ -167,6 +269,11 @@ def interpret_input(filename: str) -> Relation:
     return table
 
 
+def output_results(filename, tables):
+    dest = open(filename, "w")
+    dest.close()
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print(
@@ -182,6 +289,26 @@ if __name__ == "__main__":
     tables.append(interpret_input(input_filename))
     print(tables[0])
     print("Entering First normal form...")
-    tables += tables[0].one_nf()
+    new_tables = tables[0].one_nf()
+    if len(new_tables):
+        tables += new_tables
     for i in range(len(tables)):
         print(tables[i])
+    print("Time for Second Normal Form...")
+    for x in tables:
+        new_tables = x.two_nf()
+        if len(new_tables):
+            tables += new_tables
+    print("-" * 50)
+    for i in range(len(tables)):
+        print(tables[i])
+    print("Time for Third Normal Form...")
+    for x in tables:
+        new_tables = x.three_nf()
+        if len(new_tables):
+            tables += new_tables
+
+    output_name = "normalized_schema.txt"
+    if sys.argv > 2:
+        output_name = sys.argv[3]
+    output_results(output_name, tables)
