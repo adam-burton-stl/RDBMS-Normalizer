@@ -68,14 +68,18 @@ class Relation:
     def one_nf(self):
         new_tables: list[Relation] = []
         for i in range(len(self.multivalued_attributes)):
-            if self.multivalued_attributes[i] in self.attributes:
+            if self.multivalued_attributes[i] in [x[0] for x in self.attributes]:
                 new_title = self.multivalued_attributes[i] + "Data"
                 new_attrs = self.primary_key[:]
                 new_attrs.append(self.multivalued_attributes[i])
+                for i in range(len(new_attrs)):
+                    loc = [x[0] for x in self.attributes].index(new_attrs[i])
+                    new_attrs[i] = [new_attrs[i], self.attributes[loc][1]]
+                    if new_attrs[i][0] in self.multivalued_attributes:
+                        self.attributes.pop(loc)
                 new_tables.append(
                     Relation(new_title, new_attrs, self.primary_key[:], [], [])
                 )
-                self.attributes.remove(self.multivalued_attributes[i])
         self.multivalued_attributes = []
         return new_tables
 
@@ -90,6 +94,8 @@ def interpret_input(filename: str) -> Relation:
     if len(attributes) < 1:
         print("Error: Invalid attributes.")
         sys.exit()
+    for i in range(len(attributes)):
+        attributes[i] = attributes[i].split(":")
     primary_key = schema.readline()[13:-1]
     if (primary_key[0] == "{") and (primary_key[-1] == "}"):
         primary_key = primary_key[1:-1].split(", ")
@@ -129,6 +135,9 @@ if __name__ == "__main__":
         )
         print("")
         sys.exit()
+    print(
+        "Thank you for using the RDBMS Normalizer!\nPlease note that input file format must match the provided example inputs."
+    )
     tables: list[Relation] = []
     input_filename = sys.argv[1]
     tables.append(interpret_input(input_filename))
