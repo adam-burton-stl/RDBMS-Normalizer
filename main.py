@@ -160,7 +160,7 @@ class Relation:
                         new_prim,
                         can_keys=[],
                         mv_attrs=[],
-                        fds=new_fds,
+                        fds=[],
                     )
                 )
         self.multivalued_attributes = []
@@ -264,25 +264,21 @@ class Relation:
 
     def three_nf(self):
         new_tables = []
-        all_dets = []
-        all_deps = []
         fds_to_pop = []
-        for fd in self.fds:
-            all_dets += fd.determinant
-            for i in range(len(fd.dependents)):
-                all_deps += fd.dependents[i]
         for i in range(len(self.fds)):
-            is_transitive = False
             # If any attributes of the FD's determinant are dependents in another FD,
             # the FD is transitive, and must be separated out.
-            for fd_det in self.fds[i].determinant:
-                if fd_det in all_deps:
-                    print(
-                        f"!!!!!!Found transitive dependency from {fd_det} in {self.name}"
-                    )
-                    is_transitive = True
-                    break
-            if is_transitive:
+            violation = False
+            if set(self.primary_key) != set(self.fds[i].determinant):
+                for dep_set in self.fds[i].dependents:
+                    for dep in dep_set:
+                        if not (dep in self.primary_key):
+                            violation = True
+                            print(
+                                f"!!!!!!Found transitive dependency from {dep} in {self.name}"
+                            )
+
+            if violation:
                 new_name = ""
                 for det in self.fds[i].determinant:
                     new_name += det
@@ -323,6 +319,56 @@ class Relation:
             self.fds.pop(i)
         return new_tables
 
+    def bcnf(self):
+        new_tables = []
+        fds_to_pop = []
+        for i in range(len(self.fds)):
+            # If the FD's determinant isn't a superkey, the FD violates BCNF and must be separated out.
+            if set(self.primary_key) != set(self.fds[i].determinant):
+                print(
+                    f"Table {self.name}: PK = {self.primary_key}, FD {str(self.fds[i])} violates"
+                )
+                new_name = ""
+                for det in self.fds[i].determinant:
+                    new_name += det
+                new_name += "Data"
+                print(f"Creating new relation {new_name}")
+                # Add the transitive FD's involved attributes to the new table (with their data types)
+                new_attrs = self.fds[i].determinant[:]
+                for j in range(len(self.fds[i].dependents)):
+                    new_attrs += self.fds[i].dependents[j][:]
+                for j in range(len(new_attrs)):
+                    loc = [x[0] for x in self.attributes].index(new_attrs[j])
+                    new_attrs[j] = [new_attrs[j], self.attributes[loc][1]]
+                print(f"Contains attributes: {new_attrs}")
+                new_tables.append(
+                    Relation(
+                        name=new_name,
+                        attrs=new_attrs,
+                        prim_key=self.fds[i].determinant[:],
+                        can_keys=[],
+                        mv_attrs=[],
+                        fds=[self.fds[i]],
+                    )
+                )
+                # Remove the transitively dependent attributes from the old table
+                unpacked_deps = []
+                for dep_set in self.fds[i].dependents:
+                    unpacked_deps += dep_set
+                for fd_dep in unpacked_deps:
+                    print(
+                        "popping:",
+                        self.attributes.pop(
+                            [x[0] for x in self.attributes].index(fd_dep)
+                        ),
+                    )
+                fds_to_pop.append(i)
+        # Remove all identified (and separated) transitive dependencies
+        for i in fds_to_pop[::-1]:
+            self.fds.pop(i)
+        print("-" * 50)
+        return new_tables
+
     def four_nf(self):
         new_tables = []
         for fd in self.fds:
@@ -352,6 +398,7 @@ class Relation:
                             fds=[],
                         )
                     )
+                    print(f"Created\n{new_tables[-1]}")
         return new_tables
 
 
@@ -476,16 +523,19 @@ if __name__ == "__main__":
         new_tables = x.three_nf()
         if len(new_tables):
             tables += new_tables
+    # print("Time for Boyce-Codd Normal Form...")
+    # for x in tables:
+    #     new_tables = x.bcnf()
+    #     if len(new_tables):
+    #         tables += new_tables
+
     print("Time for Fouth Normal Form...")
     tables_to_remove = []
     for x in tables:
         new_tables = x.four_nf()
         if len(new_tables):
-            print(f"Relation {x.name} was normalized by 4NF")
             tables += new_tables
-            print(f"Adding {tables.index(x)} to remove list")
             tables_to_remove.append(tables.index(x))
-    print(f"Removing tables at indexes:", tables_to_remove)
     tables_to_remove.sort(reverse=True)
     for i in tables_to_remove:
         tables.pop(i)
