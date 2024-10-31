@@ -323,6 +323,37 @@ class Relation:
             self.fds.pop(i)
         return new_tables
 
+    def four_nf(self):
+        new_tables = []
+        for fd in self.fds:
+            # If there is a multi-valued dependency...
+            if len(fd.dependents) > 1:
+                # Create a new relation for each dependent set
+                for dep_set in fd.dependents:
+                    new_name = ""
+                    for attr in fd.determinant:
+                        new_name += attr
+                    for attr in dep_set:
+                        new_name += attr
+                    new_name += "Data"
+                    new_attrs = fd.determinant[:]
+                    new_attrs += dep_set
+                    new_prim = new_attrs[:]
+                    for j in range(len(new_attrs)):
+                        loc = [x[0] for x in self.attributes].index(new_attrs[j])
+                        new_attrs[j] = [new_attrs[j], self.attributes[loc][1]]
+                    new_tables.append(
+                        Relation(
+                            name=new_name,
+                            attrs=new_attrs,
+                            prim_key=new_prim,
+                            can_keys=[],
+                            mv_attrs=[],
+                            fds=[],
+                        )
+                    )
+        return new_tables
+
 
 def interpret_input(filename: str) -> Relation:
     """Read the contents of the given file and create a corresponding Relation class instance."""
@@ -445,7 +476,19 @@ if __name__ == "__main__":
         new_tables = x.three_nf()
         if len(new_tables):
             tables += new_tables
-
+    print("Time for Fouth Normal Form...")
+    tables_to_remove = []
+    for x in tables:
+        new_tables = x.four_nf()
+        if len(new_tables):
+            print(f"Relation {x.name} was normalized by 4NF")
+            tables += new_tables
+            print(f"Adding {tables.index(x)} to remove list")
+            tables_to_remove.append(tables.index(x))
+    print(f"Removing tables at indexes:", tables_to_remove)
+    tables_to_remove.sort(reverse=True)
+    for i in tables_to_remove:
+        tables.pop(i)
     output_name = "normalized_schema.txt"
     if len(sys.argv) > 2:
         output_name = sys.argv[3]
