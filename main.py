@@ -85,10 +85,18 @@ class Relation:
         result += "Primary Key: " + str(self.primary_key) + "\n"
         result += (
             "Candidate Keys: "
-            + (str(self.candidate_keys) if str(self.candidate_keys) else "None")
+            + (str(self.candidate_keys) if len(self.candidate_keys) else "None")
             + "\n"
         )
-        result += "Multi-Valued Attributes: " + str(self.multivalued_attributes) + "\n"
+        result += (
+            "Multi-Valued Attributes: "
+            + (
+                str(self.multivalued_attributes)
+                if len(self.multivalued_attributes)
+                else "None"
+            )
+            + "\n"
+        )
         result += "Functional Dependencies:\n"
         if self.fds == []:
             result += "N/A\n"
@@ -261,23 +269,29 @@ class Relation:
         fds_to_pop = []
         for fd in self.fds:
             all_dets += fd.determinant
-            all_deps += fd.dependents
+            for i in range(len(fd.dependents)):
+                all_deps += fd.dependents[i]
         for i in range(len(self.fds)):
             is_transitive = False
+            # If any attributes of the FD's determinant are dependents in another FD,
+            # the FD is transitive, and must be separated out.
             for fd_det in self.fds[i].determinant:
                 if fd_det in all_deps:
                     print(
                         f"!!!!!!Found transitive dependency from {fd_det} in {self.name}"
                     )
                     is_transitive = True
+                    break
             if is_transitive:
                 new_name = ""
-                for dep in self.fds[i].dependents:
-                    new_name += dep
+                for det in self.fds[i].determinant:
+                    new_name += det
                 new_name += "Data"
                 print(f"Creating new relation {new_name}")
+                # Add the transitive FD's involved attributes to the new table (with their data types)
                 new_attrs = self.fds[i].determinant[:]
-                new_attrs += self.fds[i].dependents[:]
+                for j in range(len(self.fds[i].dependents)):
+                    new_attrs += self.fds[i].dependents[j][:]
                 for j in range(len(new_attrs)):
                     loc = [x[0] for x in self.attributes].index(new_attrs[j])
                     new_attrs[j] = [new_attrs[j], self.attributes[loc][1]]
@@ -289,10 +303,14 @@ class Relation:
                         prim_key=self.fds[i].determinant[:],
                         can_keys=[],
                         mv_attrs=[],
-                        fds=[],
+                        fds=[self.fds[i]],
                     )
                 )
-                for fd_dep in self.fds[i].dependents:
+                # Remove the transitively dependent attributes from the old table
+                unpacked_deps = []
+                for dep_set in self.fds[i].dependents:
+                    unpacked_deps += dep_set
+                for fd_dep in unpacked_deps:
                     print(
                         "popping:",
                         self.attributes.pop(
@@ -300,6 +318,7 @@ class Relation:
                         ),
                     )
                 fds_to_pop.append(i)
+        # Remove all identified (and separated) transitive dependencies
         for i in fds_to_pop[::-1]:
             self.fds.pop(i)
         return new_tables
