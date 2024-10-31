@@ -165,22 +165,25 @@ class Relation:
         new_tables = []
         fds_to_remove = []
         removed_attributes = []
-        # print("-" * 50)
-        # print(f"From:\n{self}")
 
         for i in range(len(self.fds)):
             affected_attrs = []
+            # If the functional dependency contains a prime attribute, but not the entire primary key...
             if (
                 self.fds[i].det_contains(self.primary_key)
                 and self.fds[i].determinant != self.primary_key
             ):
+                print(f"FD {self.fds[i]} has a prime attribute determinant")
                 try:
-                    for dep in self.fds[i].dependents:
-                        if dep not in self.primary_key:
-                            affected_attrs.append(dep)
-                            # print(
-                            #     f"!!! PFD DETECTED in {self.name} for attribute {dep}!!!"
-                            # )
+                    # Locate non-prime attributes in the dependent of the FD
+                    for j in range(len(self.fds[i].dependents)):
+                        for dep in self.fds[i].dependents[j]:
+                            if dep not in self.primary_key:
+                                affected_attrs.append(dep)
+                                print(
+                                    f"!!! PFD DETECTED in {self.name} for attribute {dep}!!!"
+                                )
+                    # If non-prime attribtues were found, remove these attributes and create a new table.
                     if len(affected_attrs):
                         new_name = ""
                         for det in self.fds[i].determinant:
@@ -191,6 +194,7 @@ class Relation:
                         new_attrs += affected_attrs
                         # print(f"Contains attributes: {new_attrs}")
                         for j in range(len(new_attrs)):
+                            # Reformat attributes to have data type and remove them from their old table
                             loc = [x[0] for x in self.attributes].index(new_attrs[j])
                             new_attrs[j] = [new_attrs[j], self.attributes[loc][1]]
                             if new_attrs[j][0] not in self.primary_key:
@@ -199,13 +203,18 @@ class Relation:
                                 )
                                 removed_attributes.append(self.attributes[loc])
                                 self.attributes.pop(loc)
-
+                        # Incorporate the base functional dependency, and any others that involve the affected attributes
                         new_fds = [self.fds[i]]
                         for fd in self.fds[:i] + self.fds[i + 1 :]:
                             print("testing", str(fd))
                             for attr in affected_attrs:
+                                unpacked_dependents = []
+                                for dep_set in fd.dependents:
+                                    unpacked_dependents += dep_set
+                                # If a functional dependency contains target attribute as a determinant or dependent,
+                                # and all of the determinant's attributes are in the new table...
                                 if fd.det_contains([attr]) or (
-                                    attr in fd.dependents
+                                    attr in unpacked_dependents
                                     and (
                                         False
                                         not in [
@@ -243,11 +252,6 @@ class Relation:
                 if removed_attributes[i][0] in self.fds[j].dependents:
                     print(f"Removing {removed_attributes[i]} from {self.fds[j]}")
                     self.fds[j].remove_dep(removed_attributes[i][0])
-
-        # print("Created:")
-        # for i in range(len(new_tables)):
-        #     print(new_tables[i])
-        # print("-" * 50)
         return new_tables
 
     def three_nf(self):
