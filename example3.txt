@@ -1,0 +1,18 @@
+Table: CoffeeShopData
+Attributes: OrderID:INTEGER, Date:DATE, PromocodeUsed:VARCHAR(255), TotalCost:MONEY, TotalDrinkCost:MONEY, TotalFoodCost:MONEY, CustomerID:INTEGER, CustomerName:VARCHAR(255), DrinkID:INTEGER, DrinkName:VARCHAR(255), DrinkSize:VARCHAR(255), DrinkQuantity:INTEGER, Milk:VARCHAR(255), DrinkIngredient:VARCHAR(255), DrinkAllergen:VARCHAR(255), FoodID:INTEGER, FoodName:VARCHAR(255), FoodQuantity:INTEGER, FoodIngredient:VARCHAR(255), FoodAllergen:VARCHAR(255)
+Primary Key: {OrderID, DrinkID, FoodID}
+Candidate Keys: None
+Multi-Valued Attributes: PromocodeUsed, DrinkIngredient, DrinkAllergen, FoodIngredient, FoodAllergen
+Functional Dependencies:
+{OrderID} -> {PromocodeUsed}
+{DrinkID} -> {DrinkIngredient}
+{DrinkID} -> {DrinkAllergen}
+{FoodID} -> {FoodIngredient}
+{FoodID} -> {FoodAllergen}
+{OrderID} ->> {DrinkID} | {FoodID}
+{OrderID} -> {Date, TotalCost, TotalDrinkCost, TotalFoodCost, CustomerID, CustomerName}
+{OrderID, DrinkID} -> {DrinkSize, DrinkQuantity, Milk}
+{OrderID, FoodID} -> {FoodQuantity}
+{CustomerID} -> {CustomerName}
+{DrinkID} -> {DrinkName}
+{FoodID} -> {FoodName}
