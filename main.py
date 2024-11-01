@@ -3,6 +3,7 @@
 
 
 import sys
+from typing import Self
 
 
 class FunctionalDependency:
@@ -13,32 +14,32 @@ class FunctionalDependency:
         self.determinant = det
         self.dependents = deps
 
-    def is_dep(self, attr):
+    def is_dep(self, attr: str) -> bool:
         result = False
         for i in range(len(self.dependents)):
             if attr in self.dependents[i]:
                 result = True
         return result
 
-    def remove_dep(self, attr):
+    def remove_dep(self, attr: str) -> None:
         for i in range(len(self.dependents)):
             if attr in self.dependents[i]:
                 self.dependents[i].remove(attr)
         # self.dependents.remove(attr)
 
-    def det_contains(self, attrs):
+    def det_contains(self, attrs: list[str]) -> bool:
         for i in range(len(attrs)):
             if attrs[i] in self.determinant:
                 return True
         return False
 
-    def is_mv(self):
+    def is_mv(self) -> bool:
         if len(self.dependents) == 1:
             return False
         else:
             return True
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Pretty print of FunctionalDependency"""
         output = "{"
         for det in self.determinant[:-1]:
@@ -78,16 +79,33 @@ class Relation:
         self.multivalued_attributes = mv_attrs
         self.fds = fds
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Pretty print of Relation"""
         result = "Relation: " + self.name + "\n"
-        result += "Attributes: " + str(self.attributes) + "\n"
-        result += "Primary Key: " + str(self.primary_key) + "\n"
-        result += (
-            "Candidate Keys: "
-            + (str(self.candidate_keys) if len(self.candidate_keys) else "None")
-            + "\n"
-        )
+
+        result += "Attributes: "
+        for attr, typ in self.attributes[:-1]:
+            result += attr + ":" + typ + ", "
+        result += self.attributes[-1][0] + ":" + self.attributes[-1][1] + "\n"
+
+        result += "Primary Key: {"
+        for attr in self.primary_key[:-1]:
+            result += attr + ", "
+        result += self.primary_key[-1] + "}\n"
+
+        result += "Candidate Keys: "
+        if self.candidate_keys:
+            for attr_set in self.candidate_keys[:-1]:
+                result += "{"
+                for attr in attr_set[:-1]:
+                    result += attr + ", "
+                result += attr_set[-1] + "}, "
+            result += "{"
+            for attr in self.candidate_keys[-1][:-1]:
+                result += attr + ", "
+            result += self.candidate_keys[-1][-1] + "}\n"
+        else:
+            result += "None\n"
         result += (
             "Multi-Valued Attributes: "
             + (
@@ -97,6 +115,12 @@ class Relation:
             )
             + "\n"
         )
+        if self.multivalued_attributes:
+            for attr in self.multivalued_attributes[:-1]:
+                result += attr + ", "
+            result += self.multivalued_attributes[-1] + "}\n"
+        else:
+            result += "None\n"
         result += "Functional Dependencies:\n"
         if self.fds == []:
             result += "N/A\n"
@@ -105,8 +129,8 @@ class Relation:
                 result += str(self.fds[i]) + "\n"
         return result
 
-    def one_nf(self):
-        """Convert the relation into 1NF by separating all multivalued attributes into their own tables (which are returned)."""
+    def one_nf(self) -> list[Self]:
+        """Normalize the relation to 1NF by separating all multivalued attributes into their own relations, which are returned."""
         print("Processing table", self.name, "...")
         fds_to_remove = []
         new_tables: list[Relation] = []
@@ -169,7 +193,9 @@ class Relation:
             self.fds.pop(fds_to_remove[i])
         return new_tables
 
-    def two_nf(self):
+    def two_nf(self) -> list[Self]:
+        """Normalize the relation to 2NF by detecting partial functional dependencies and separating them into new
+        relations, which are returned."""
         new_tables = []
         fds_to_remove = []
         removed_attributes = []
@@ -262,7 +288,9 @@ class Relation:
                     self.fds[j].remove_dep(removed_attributes[i][0])
         return new_tables
 
-    def three_nf(self):
+    def three_nf(self) -> list[Self]:
+        """Normalize the relation to 3NF by detecting transitive functional dependencies and separating them into
+        their own relations, which are returned."""
         new_tables = []
         fds_to_pop = []
         for i in range(len(self.fds)):
@@ -319,7 +347,9 @@ class Relation:
             self.fds.pop(i)
         return new_tables
 
-    def bcnf(self):
+    def bcnf(self) -> list[Self]:
+        """Normalize the relation to BCNF by detecting functional dependencies with non-superkey determinants and
+        separating them into their own relations, which are returned."""
         new_tables = []
         fds_to_pop = []
         for i in range(len(self.fds)):
@@ -369,7 +399,9 @@ class Relation:
         print("-" * 50)
         return new_tables
 
-    def four_nf(self):
+    def four_nf(self) -> list[Self]:
+        """Normalize the relation to 4NF by separating multivalued functional dependencies into their own relations,
+        which are returned."""
         new_tables = []
         for fd in self.fds:
             # If there is a multi-valued dependency...
@@ -401,10 +433,16 @@ class Relation:
                     print(f"Created\n{new_tables[-1]}")
         return new_tables
 
-    def five_nf(self):
+    def five_nf(self) -> list[Self]:
+        """Normalize the relation to 5NF by prompting for table data, analyzing for join dependencies, and splitting the
+        relation into two new ones, which are returned (if the table can be split)."""
         new_tables = []
         table_data = [[]]
         if len(self.attributes) > 2:
+            # Data Entry
+            print(
+                f"Relation {self.name} has {len(self.attributes)} attributes and may be decomposed."
+            )
             print(
                 "Please enter comma separated data that adheres to the following schema:"
             )
@@ -416,7 +454,7 @@ class Relation:
             while user_in != "q":
                 user_in = user_in.split()
                 if len(user_in) == len(self.attributes):
-                    table_data.insert(user_in)
+                    table_data.append(user_in)
                 else:
                     print(
                         "Incorrect number of attributes. Please match the following schema or enter q to stop input."
@@ -428,6 +466,9 @@ class Relation:
             print("Input complete. You entered:")
             for tuple in table_data:
                 print(tuple)
+
+            # Computation
+
         else:
             print(
                 f"Relation {self.name} only has 2 attributes and cannot be broken down."
@@ -435,7 +476,7 @@ class Relation:
         return new_tables
 
 
-def interpret_input(filename: str) -> Relation:
+def interpret_input(input_filename: str) -> Relation:
     """Read the contents of the given file and create a corresponding Relation class instance."""
     schema = open(input_filename, "r")
     # -- Name --
@@ -516,7 +557,8 @@ def interpret_input(filename: str) -> Relation:
     return table
 
 
-def output_results(filename, tables):
+def output_results(filename: str, tables: list[Relation]) -> None:
+    """Fill a specified output file with the given list of tables."""
     dest = open(filename, "w")
     for i in range(len(tables)):
         dest.write(str(tables[i]) + "\n\n")
@@ -524,13 +566,20 @@ def output_results(filename, tables):
 
 
 if __name__ == "__main__":
-
-    # TODO: add input choice to determine highest desired normal form.
     if len(sys.argv) < 2:
         print(
             "Please add an input file of the following form as a command-line argument and try again."
         )
-        print("")
+        print(
+            Relation(
+                name="example",
+                attrs=[["attr1", "VARCHAR(255)"], ["attr2", "INTEGER"]],
+                prim_key=["attr1"],
+                can_keys=[],
+                mv_attrs=["attr2"],
+                fds=[FunctionalDependency(["attr1"], [["attr2"]])],
+            )
+        )
         sys.exit()
     print(
         "Thank you for using the RDBMS Normalizer!\nPlease note that input file format must match the provided example inputs."
@@ -541,12 +590,12 @@ if __name__ == "__main__":
     print(tables[0])
 
     user_in = input(
-        'How far do you want to normalize the relation?\n(Enter one of the following: "1NF", "2NF", "3NF", "BCNF", "4NF", "5NF")'
-    )
+        'How far do you want to normalize the relation?\n(Enter one of the following: "1NF", "2NF", "3NF", "BCNF", "4NF", "5NF")\n'
+    ).upper()
     while user_in not in ["1NF", "2NF", "3NF", "BCNF", "4NF", "5NF"]:
         user_in = input(
-            'Invalid input, please enter one of the following: "1NF", "2NF", "3NF", "BCNF", "4NF", "5NF"'
-        )
+            'Invalid input, please enter one of the following: "1NF", "2NF", "3NF", "BCNF", "4NF", "5NF"\n'
+        ).upper()
     print(f"You chose {user_in}")
 
     print("Entering First normal form...")
@@ -593,8 +642,14 @@ if __name__ == "__main__":
         print(
             "NOTE: This normal form requires data that will have to be entered for each relation."
         )
+        for x in tables:
+            new_tables = x.five_nf()
+            if len(new_tables):
+                tables += new_tables
 
     output_name = "normalized_schema.txt"
     if len(sys.argv) > 2:
         output_name = sys.argv[3]
     output_results(output_name, tables)
+    print(f"The noramlized schema has been outputted to {output_name}")
+    print("Thank you for using the RDBMS Normalizer!")

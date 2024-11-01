@@ -1,0 +1,7 @@
+Table: CoffeeShopData
+Attributes: OrderID:INTEGER, CustomerID:INTEGER, DrinkID:INTEGER, Milk:VARCHAR(255)
+Primary Key: {OrderID, DrinkID, FoodID, Milk}
+Candidate Keys: None
+Multi-Valued Attributes: None
+Functional Dependencies:
+N/A
