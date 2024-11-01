@@ -401,6 +401,39 @@ class Relation:
                     print(f"Created\n{new_tables[-1]}")
         return new_tables
 
+    def five_nf(self):
+        new_tables = []
+        table_data = [[]]
+        if len(self.attributes) > 2:
+            print(
+                "Please enter comma separated data that adheres to the following schema:"
+            )
+            for attr in [x[0] for x in self.attributes[:-1]]:
+                print(attr, end=", ")
+            print(self.attributes[-1][0])
+            print("Each tuple is on its own line. Enter 'q' instead to stop input.")
+            user_in = input()
+            while user_in != "q":
+                user_in = user_in.split()
+                if len(user_in) == len(self.attributes):
+                    table_data.insert(user_in)
+                else:
+                    print(
+                        "Incorrect number of attributes. Please match the following schema or enter q to stop input."
+                    )
+                    for attr in [x[0] for x in self.attributes[:-1]]:
+                        print(attr, end=", ")
+                    print(self.attributes[-1][0])
+                user_in = input()
+            print("Input complete. You entered:")
+            for tuple in table_data:
+                print(tuple)
+        else:
+            print(
+                f"Relation {self.name} only has 2 attributes and cannot be broken down."
+            )
+        return new_tables
+
 
 def interpret_input(filename: str) -> Relation:
     """Read the contents of the given file and create a corresponding Relation class instance."""
@@ -491,6 +524,8 @@ def output_results(filename, tables):
 
 
 if __name__ == "__main__":
+
+    # TODO: add input choice to determine highest desired normal form.
     if len(sys.argv) < 2:
         print(
             "Please add an input file of the following form as a command-line argument and try again."
@@ -504,41 +539,61 @@ if __name__ == "__main__":
     input_filename = sys.argv[1]
     tables.append(interpret_input(input_filename))
     print(tables[0])
+
+    user_in = input(
+        'How far do you want to normalize the relation?\n(Enter one of the following: "1NF", "2NF", "3NF", "BCNF", "4NF", "5NF")'
+    )
+    while user_in not in ["1NF", "2NF", "3NF", "BCNF", "4NF", "5NF"]:
+        user_in = input(
+            'Invalid input, please enter one of the following: "1NF", "2NF", "3NF", "BCNF", "4NF", "5NF"'
+        )
+    print(f"You chose {user_in}")
+
     print("Entering First normal form...")
     new_tables = tables[0].one_nf()
     if len(new_tables):
         tables += new_tables
     for i in range(len(tables)):
         print(tables[i])
-    print("Time for Second Normal Form...")
-    for x in tables:
-        new_tables = x.two_nf()
-        if len(new_tables):
-            tables += new_tables
-    print("-" * 50)
-    for i in range(len(tables)):
-        print(tables[i])
-    print("Time for Third Normal Form...")
-    for x in tables:
-        new_tables = x.three_nf()
-        if len(new_tables):
-            tables += new_tables
-    # print("Time for Boyce-Codd Normal Form...")
-    # for x in tables:
-    #     new_tables = x.bcnf()
-    #     if len(new_tables):
-    #         tables += new_tables
+    if user_in in ["2NF", "3NF", "BCNF", "4NF", "5NF"]:
+        print("Time for Second Normal Form...")
+        for x in tables:
+            new_tables = x.two_nf()
+            if len(new_tables):
+                tables += new_tables
+        print("-" * 50)
+        for i in range(len(tables)):
+            print(tables[i])
+    if user_in in ["3NF", "BCNF", "4NF", "5NF"]:
+        print("Time for Third Normal Form...")
+        for x in tables:
+            new_tables = x.three_nf()
+            if len(new_tables):
+                tables += new_tables
+    if user_in in ["BCNF", "4NF", "5NF"]:
+        print("Time for Boyce-Codd Normal Form... (not really)")
+        # for x in tables:
+        #     new_tables = x.bcnf()
+        #     if len(new_tables):
+        #         tables += new_tables
 
-    print("Time for Fouth Normal Form...")
-    tables_to_remove = []
-    for x in tables:
-        new_tables = x.four_nf()
-        if len(new_tables):
-            tables += new_tables
-            tables_to_remove.append(tables.index(x))
-    tables_to_remove.sort(reverse=True)
-    for i in tables_to_remove:
-        tables.pop(i)
+    if user_in in ["4NF", "5NF"]:
+        print("Time for Fouth Normal Form...")
+        tables_to_remove = []
+        for x in tables:
+            new_tables = x.four_nf()
+            if len(new_tables):
+                tables += new_tables
+                tables_to_remove.append(tables.index(x))
+        tables_to_remove.sort(reverse=True)
+        for i in tables_to_remove:
+            tables.pop(i)
+    if user_in in ["5NF"]:
+        print("Time for Fifth Normal Form...")
+        print(
+            "NOTE: This normal form requires data that will have to be entered for each relation."
+        )
+
     output_name = "normalized_schema.txt"
     if len(sys.argv) > 2:
         output_name = sys.argv[3]
