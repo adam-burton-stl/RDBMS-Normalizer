@@ -106,21 +106,15 @@ class Relation:
             result += self.candidate_keys[-1][-1] + "}\n"
         else:
             result += "None\n"
-        result += (
-            "Multi-Valued Attributes: "
-            + (
-                str(self.multivalued_attributes)
-                if len(self.multivalued_attributes)
-                else "None"
-            )
-            + "\n"
-        )
+
+        result += "Multi-Valued Attributes: "
         if self.multivalued_attributes:
             for attr in self.multivalued_attributes[:-1]:
                 result += attr + ", "
             result += self.multivalued_attributes[-1] + "}\n"
         else:
             result += "None\n"
+
         result += "Functional Dependencies:\n"
         if self.fds == []:
             result += "N/A\n"
@@ -156,17 +150,21 @@ class Relation:
                         table_based_on_fd = True
                         fds_to_remove.append(j)
                         break
+                # If the removed attribute is not alone in an FD, separate by putting it in a new table with the old one's
+                # primary key
                 if not table_based_on_fd:
                     new_prim = self.primary_key[:]
                     new_prim.append(self.multivalued_attributes[i])
                     new_attrs = new_prim[:]
-                # assign data types to new_attrs
+                # assign data types to new_attrs and actually remove the removed attribute from the old relation
+                # (similar code will appear frequently in later normal forms)
                 for j in range(len(new_attrs)):
                     loc = [x[0] for x in self.attributes].index(new_attrs[j])
                     new_attrs[j] = [new_attrs[j], self.attributes[loc][1]]
                     if new_attrs[j][0] == self.multivalued_attributes[i]:
                         self.attributes.pop(loc)
 
+                # If the table wasn't based on an existing FD, move any matching FDs to the new table.
                 if not table_based_on_fd:
                     for j in range(len(self.fds)):
                         if self.fds[j].is_dep(self.multivalued_attributes[i]):
@@ -202,7 +200,7 @@ class Relation:
 
         for i in range(len(self.fds)):
             affected_attrs = []
-            # If the functional dependency contains a prime attribute, but not the entire primary key...
+            # If the FD's determinant contains a prime attribute, but not the entire primary key...
             if (
                 self.fds[i].det_contains(self.primary_key)
                 and self.fds[i].determinant != self.primary_key
@@ -217,16 +215,14 @@ class Relation:
                                 print(
                                     f"!!! PFD DETECTED in {self.name} for attribute {dep}!!!"
                                 )
-                    # If non-prime attribtues were found, remove these attributes and create a new table.
+                    # If non-prime attributes were found, remove these attributes and create a new table.
                     if len(affected_attrs):
                         new_name = ""
                         for det in self.fds[i].determinant:
                             new_name += det
                         new_name += "Data"
-                        # print(f"Creating new relation {new_name}")
                         new_attrs = self.fds[i].determinant[:]
                         new_attrs += affected_attrs
-                        # print(f"Contains attributes: {new_attrs}")
                         for j in range(len(new_attrs)):
                             # Reformat attributes to have data type and remove them from their old table
                             loc = [x[0] for x in self.attributes].index(new_attrs[j])
@@ -245,8 +241,8 @@ class Relation:
                                 unpacked_dependents = []
                                 for dep_set in fd.dependents:
                                     unpacked_dependents += dep_set
-                                # If a functional dependency contains target attribute as a determinant or dependent,
-                                # and all of the determinant's attributes are in the new table...
+                                # If any functional dependency contains any affected attributes as a determinant or dependent,
+                                # and all of the dependent attributes are in the new table...
                                 if fd.det_contains([attr]) or (
                                     attr in unpacked_dependents
                                     and (
@@ -279,13 +275,6 @@ class Relation:
         fds_to_remove.sort(reverse=True)
         for i in range(len(fds_to_remove)):
             self.fds.pop(fds_to_remove[i])
-
-        print(f"Relation {self.name} - Total removed attributes:", removed_attributes)
-        for i in range(len(removed_attributes)):
-            for j in range(len(self.fds)):
-                if removed_attributes[i][0] in self.fds[j].dependents:
-                    print(f"Removing {removed_attributes[i]} from {self.fds[j]}")
-                    self.fds[j].remove_dep(removed_attributes[i][0])
         return new_tables
 
     def three_nf(self) -> list[Self]:
@@ -294,8 +283,12 @@ class Relation:
         new_tables = []
         fds_to_pop = []
         for i in range(len(self.fds)):
-            # If any attributes of the FD's determinant are dependents in another FD,
-            # the FD is transitive, and must be separated out.
+            # Ignore multi-valued dependencies
+            if len(self.fds[i].dependents) > 1:
+                continue
+            # TODO: Check for superkey instead of primary key...
+            # If an FD's determinant isn't the primary key and there are non-prime dependents, the FD is violates 3NF and
+            # must be seaparated out.
             violation = False
             if set(self.primary_key) != set(self.fds[i].determinant):
                 for dep_set in self.fds[i].dependents:
@@ -342,7 +335,7 @@ class Relation:
                         ),
                     )
                 fds_to_pop.append(i)
-        # Remove all identified (and separated) transitive dependencies
+        # Remove all identified (and separated) transitive funcitonal dependencies
         for i in fds_to_pop[::-1]:
             self.fds.pop(i)
         return new_tables
@@ -353,6 +346,9 @@ class Relation:
         new_tables = []
         fds_to_pop = []
         for i in range(len(self.fds)):
+            # Ignore multi-valued attributes
+            if len(self.fds[i].dependents) > 1:
+                continue
             # If the FD's determinant isn't a superkey, the FD violates BCNF and must be separated out.
             if set(self.primary_key) != set(self.fds[i].determinant):
                 print(
@@ -363,7 +359,7 @@ class Relation:
                     new_name += det
                 new_name += "Data"
                 print(f"Creating new relation {new_name}")
-                # Add the transitive FD's involved attributes to the new table (with their data types)
+                # Add the violating FD's involved attributes to the new table (with their data types)
                 new_attrs = self.fds[i].determinant[:]
                 for j in range(len(self.fds[i].dependents)):
                     new_attrs += self.fds[i].dependents[j][:]
@@ -381,7 +377,7 @@ class Relation:
                         fds=[self.fds[i]],
                     )
                 )
-                # Remove the transitively dependent attributes from the old table
+                # Remove the violating attributes from the old table
                 unpacked_deps = []
                 for dep_set in self.fds[i].dependents:
                     unpacked_deps += dep_set
@@ -393,7 +389,7 @@ class Relation:
                         ),
                     )
                 fds_to_pop.append(i)
-        # Remove all identified (and separated) transitive dependencies
+        # Remove all identified (and separated) violating functional dependencies
         for i in fds_to_pop[::-1]:
             self.fds.pop(i)
         print("-" * 50)
@@ -402,11 +398,13 @@ class Relation:
     def four_nf(self) -> list[Self]:
         """Normalize the relation to 4NF by separating multivalued functional dependencies into their own relations,
         which are returned."""
+        # TODO: Request if there are additional MVDs for each relation with enough attributes
+        # TODO: Request data. split based on the newly supplied MVDs
         new_tables = []
         for fd in self.fds:
             # If there is a multi-valued dependency...
             if len(fd.dependents) > 1:
-                # Create a new relation for each dependent set
+                # Create a new relation for each set of dependents
                 for dep_set in fd.dependents:
                     new_name = ""
                     for attr in fd.determinant:
@@ -414,9 +412,8 @@ class Relation:
                     for attr in dep_set:
                         new_name += attr
                     new_name += "Data"
-                    new_attrs = fd.determinant[:]
-                    new_attrs += dep_set
-                    new_prim = new_attrs[:]
+                    new_prim = fd.determinant[:]
+                    new_attrs = new_prim + dep_set
                     for j in range(len(new_attrs)):
                         loc = [x[0] for x in self.attributes].index(new_attrs[j])
                         new_attrs[j] = [new_attrs[j], self.attributes[loc][1]]
@@ -427,7 +424,7 @@ class Relation:
                             prim_key=new_prim,
                             can_keys=[],
                             mv_attrs=[],
-                            fds=[],
+                            fds=[FunctionalDependency(new_prim[:], [dep_set])],
                         )
                     )
                     print(f"Created\n{new_tables[-1]}")
@@ -436,6 +433,7 @@ class Relation:
     def five_nf(self) -> list[Self]:
         """Normalize the relation to 5NF by prompting for table data, analyzing for join dependencies, and splitting the
         relation into two new ones, which are returned (if the table can be split)."""
+        # TODO: Actually do have to test every combination... ugh
         new_tables = []
         table_data = [[]]
         if len(self.attributes) > 2:
@@ -596,29 +594,28 @@ if __name__ == "__main__":
         user_in = input(
             'Invalid input, please enter one of the following: "1NF", "2NF", "3NF", "BCNF", "4NF", "5NF"\n'
         ).upper()
-    print(f"You chose {user_in}")
+    print(f"You chose {user_in}.")
 
     print("Entering First normal form...")
     new_tables = tables[0].one_nf()
     if len(new_tables):
         tables += new_tables
-    for i in range(len(tables)):
-        print(tables[i])
+
     if user_in in ["2NF", "3NF", "BCNF", "4NF", "5NF"]:
         print("Time for Second Normal Form...")
         for x in tables:
             new_tables = x.two_nf()
             if len(new_tables):
                 tables += new_tables
-        print("-" * 50)
-        for i in range(len(tables)):
-            print(tables[i])
+                tables += new_tables
+
     if user_in in ["3NF", "BCNF", "4NF", "5NF"]:
         print("Time for Third Normal Form...")
         for x in tables:
             new_tables = x.three_nf()
             if len(new_tables):
                 tables += new_tables
+
     if user_in in ["BCNF", "4NF", "5NF"]:
         print("Time for Boyce-Codd Normal Form... (not really)")
         # for x in tables:
@@ -637,6 +634,7 @@ if __name__ == "__main__":
         tables_to_remove.sort(reverse=True)
         for i in tables_to_remove:
             tables.pop(i)
+
     if user_in in ["5NF"]:
         print("Time for Fifth Normal Form...")
         print(
@@ -646,6 +644,16 @@ if __name__ == "__main__":
             new_tables = x.five_nf()
             if len(new_tables):
                 tables += new_tables
+
+    # Duplicate checking:
+    if len(tables) > 1:
+        attr_sets = [set([x[0] for x in tables[-1].attributes])]
+        for i in range(len(tables) - 2, 0, -1):
+            attrs = set([x[0] for x in tables[i].attributes])
+            if attrs in attr_sets:
+                tables.pop(i)
+            else:
+                attr_sets.append(attrs)
 
     output_name = "normalized_schema.txt"
     if len(sys.argv) > 2:
