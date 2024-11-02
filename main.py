@@ -775,17 +775,17 @@ def output_results(filename: str, tables: list[Relation]) -> None:
     dest.close()
 
 
-def remove_redundant_relations(tables: list[Relation]) -> list[Relation]:
-    attr_sets: list[list[str]] = [[x[0] for x in tables[-1].attributes]]
-    non_dupes: list[Relation] = [tables[-1]]
-    for i in range(len(tables) - 2, 0, -1):
-        attrs = [[x[0] for x in tables[-1].attributes]]
-        if attrs in attr_sets:
-            tables.pop(i)
-        else:
-            non_dupes.append(tables[i])
-            attrs.append(attrs)
-    return tables
+# def remove_redundant_relations(tables: list[Relation]) -> list[Relation]:
+#     attr_sets: list[list[str]] = [[x[0] for x in tables[-1].attributes]]
+#     non_dupes: list[Relation] = [tables[-1]]
+#     for i in range(len(tables) - 2, 0, -1):
+#         attrs = [[x[0] for x in tables[-1].attributes]]
+#         if attrs in attr_sets:
+#             tables.pop(i)
+#         else:
+#             non_dupes.append(tables[i])
+#             attrs.append(attrs)
+#     return tables
 
 
 if __name__ == "__main__":
@@ -850,11 +850,12 @@ if __name__ == "__main__":
         #         tables += new_tables
 
     # Remove duplicate tables
-    table_attr_sets: list[list[str]] = []
-    for i in range(len(tables) - 1, 0, -1):
+    # Remove duplicate tables
+    table_attr_sets: list[set[str]] = []
+    for i in range(len(tables) - 1, -1, -1):
         my_attrs = [x[0] for x in tables[i].attributes]
-        if not my_attrs in table_attr_sets:
-            table_attr_sets.append(my_attrs)
+        if not (set(my_attrs) in table_attr_sets):
+            table_attr_sets.append(set(my_attrs))
         else:
             tables.pop(i)
 
@@ -866,13 +867,13 @@ if __name__ == "__main__":
             if len(new_tables):
                 for table in new_tables:
                     my_attrs = [x[0] for x in table.attributes]
-                    if not my_attrs in table_attr_sets:
-                        tables += new_tables
+                    if not (set(my_attrs) in table_attr_sets):
+                        tables.append(table)
+                        table_attr_sets.append(set(my_attrs))
                 old_tables.append(tables.index(x))
         old_tables.sort(reverse=True)
         for i in old_tables:
             tables.pop(i)
-        tables = remove_redundant_relations(tables)
 
     if user_in in ["5NF"]:
         print("Time for Fifth Normal Form...")
