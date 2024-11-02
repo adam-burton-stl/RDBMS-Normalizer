@@ -198,6 +198,9 @@ class Relation:
         fds_to_remove = []
         removed_attributes = []
 
+        # TODO: Incorporate candidate keys as prime attributes
+        # TODO: remove attributes from FD instead of killing the whole FD??
+
         for i in range(len(self.fds)):
             affected_attrs = []
             # If the FD's determinant contains a prime attribute, but not the entire primary key...
