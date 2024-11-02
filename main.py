@@ -39,6 +39,9 @@ class FunctionalDependency:
         else:
             return True
 
+    def copy(self) -> Self:
+        return FunctionalDependency(self.determinant, self.dependents)
+
     def __str__(self) -> str:
         """Pretty print of FunctionalDependency"""
         output = "{"
@@ -126,8 +129,31 @@ class Relation:
     def one_nf(self) -> list[Self]:
         """Normalize the relation to 1NF by separating all multivalued attributes into their own relations, which are returned."""
         print("Processing table", self.name, "...")
-        fds_to_remove = []
+        fds_to_remove: list[int] = []
         new_tables: list[Relation] = []
+        # Create a list of functional dependencies that are based on the primary key. These will be copied to any new relations
+        # that contain the primary key.
+        transferred_fds: list[FunctionalDependency] = []
+        if len(self.multivalued_attributes):
+            for fd in self.fds:
+                keeper = True
+                for attr in fd.determinant:
+                    if attr not in self.primary_key:
+                        keeper = False
+                        break
+                for dep_set in fd.dependents:
+                    for attr in dep_set:
+                        if attr not in self.primary_key:
+                            keeper = False
+                            break
+                    if not keeper:
+                        break
+                if keeper:
+                    transferred_fds.append(fd.copy())
+        print("Identified keeper FDs")
+        for keeper in transferred_fds:
+            print(str(keeper))
+
         for i in range(len(self.multivalued_attributes)):
             print(f"Creating table for {self.multivalued_attributes[i]}...")
             if self.multivalued_attributes[i] in [x[0] for x in self.attributes]:
@@ -146,7 +172,6 @@ class Relation:
                         new_prim = self.fds[j].determinant[:]
                         new_prim.append(self.multivalued_attributes[i])
                         new_attrs = new_prim[:]
-                        new_fds.append(self.fds[j])
                         table_based_on_fd = True
                         fds_to_remove.append(j)
                         break
@@ -166,6 +191,8 @@ class Relation:
 
                 # If the table wasn't based on an existing FD, move any matching FDs to the new table.
                 if not table_based_on_fd:
+                    print("this happened")
+                    new_fds += transferred_fds
                     for j in range(len(self.fds)):
                         if self.fds[j].is_dep(self.multivalued_attributes[i]):
                             new_fds.append(
@@ -182,7 +209,7 @@ class Relation:
                         new_prim,
                         can_keys=[],
                         mv_attrs=[],
-                        fds=[],
+                        fds=new_fds,
                     )
                 )
         self.multivalued_attributes = []
@@ -291,16 +318,15 @@ class Relation:
                 continue
             # TODO: Check for superkey instead of primary key...
             # If an FD's determinant isn't the primary key and there are non-prime dependents, the FD is violates 3NF and
-            # must be seaparated out.
+            # must be separated out.
             violation = False
             if set(self.primary_key) != set(self.fds[i].determinant):
-                for dep_set in self.fds[i].dependents:
-                    for dep in dep_set:
-                        if not (dep in self.primary_key):
-                            violation = True
-                            print(
-                                f"!!!!!!Found transitive dependency from {dep} in {self.name}"
-                            )
+                for dep in self.fds[i].dependents[0]:
+                    if not (dep in self.primary_key):
+                        violation = True
+                        print(
+                            f"!!!!!!Found transitive dependency from {dep} in {self.name}"
+                        )
 
             if violation:
                 new_name = ""
