@@ -73,14 +73,16 @@ class Relation:
     candidate_keys: list[list[str]]
     multivalued_attributes: list[str]
     fds: list[FunctionalDependency]
+    data: list[str]
 
-    def __init__(self, name, attrs, prim_key, can_keys, mv_attrs, fds=[]):
+    def __init__(self, name, attrs, prim_key, can_keys, mv_attrs, fds=[], data=[]):
         self.name = name
         self.attributes = attrs
         self.primary_key = prim_key
         self.candidate_keys = can_keys
         self.multivalued_attributes = mv_attrs
         self.fds = fds
+        self.data = data
 
     def __str__(self) -> str:
         """Pretty print of Relation"""
@@ -124,6 +126,13 @@ class Relation:
         else:
             for i in range(len(self.fds)):
                 result += str(self.fds[i]) + "\n"
+
+        if self.data:
+            result += "Data:\n"
+            for tuple in self.data:
+                for value in tuple[:-1]:
+                    result += value + ", "
+                result += tuple[-1] + "\n"
         return result
 
     def one_nf(self) -> list[Self]:
@@ -218,6 +227,7 @@ class Relation:
                         can_keys=new_can,
                         mv_attrs=[],
                         fds=new_fds,
+                        data=[],
                     )
                 )
         self.multivalued_attributes = []
@@ -325,6 +335,7 @@ class Relation:
                                 can_keys=new_can,
                                 mv_attrs=[],
                                 fds=new_fds,
+                                data=[],
                             )
                         )
                         fds_to_remove.append(i)
@@ -383,6 +394,7 @@ class Relation:
                         can_keys=[],
                         mv_attrs=[],
                         fds=[self.fds[i]],
+                        data=[],
                     )
                 )
                 # Remove the transitively dependent attributes from the old table
@@ -437,6 +449,7 @@ class Relation:
                         can_keys=[],
                         mv_attrs=[],
                         fds=[self.fds[i]],
+                        data=[],
                     )
                 )
                 # Remove the violating attributes from the old table
@@ -463,33 +476,159 @@ class Relation:
         # TODO: Request if there are additional MVDs for each relation with enough attributes
         # TODO: Request data. split based on the newly supplied MVDs
         new_tables = []
-        for fd in self.fds:
-            # If there is a multi-valued dependency...
-            if len(fd.dependents) > 1:
-                # Create a new relation for each set of dependents
-                for dep_set in fd.dependents:
-                    new_name = ""
-                    for attr in fd.determinant:
-                        new_name += attr
-                    for attr in dep_set:
-                        new_name += attr
-                    new_name += "Data"
-                    new_prim = fd.determinant[:]
-                    new_attrs = new_prim + dep_set
-                    for j in range(len(new_attrs)):
-                        loc = [x[0] for x in self.attributes].index(new_attrs[j])
-                        new_attrs[j] = [new_attrs[j], self.attributes[loc][1]]
-                    new_tables.append(
-                        Relation(
-                            name=new_name,
-                            attrs=new_attrs,
-                            prim_key=new_prim,
-                            can_keys=[],
-                            mv_attrs=[],
-                            fds=[FunctionalDependency(new_prim[:], [dep_set])],
-                        )
+        # Tables with less than 3 attributes automatically satisfy 4NF
+        if len(self.attributes) < 3:
+            return new_tables
+        # For other 3+ attribute tables, request multivalue dependencies from the user
+        print(f"\nHere is the schema for relation {self.name}:")
+        print(str(self))
+        print(
+            "Are there any multi-valued dependencies you want to add before normalization?"
+        )
+        user_in = input("Type a multi-valued dependency or 'q':\n")
+        while user_in != "q":
+            valid = True
+            if not (" ->> " in user_in):
+                print("Invalid input: Must include '->>'. Please try again.")
+                valid = False
+            else:
+                det, deps = user_in.split(" ->> ")
+                deps = deps.split(" | ")
+                if len(deps) < 2:
+                    print(
+                        "Invalid input: Only one dependent set provided. Please try again."
                     )
-                    print(f"Created\n{new_tables[-1]}")
+                    valid = False
+                for i in range(len(deps)):
+                    if deps[i][0] == "{" and deps[i][-1] == "}":
+                        deps[i] = deps[i][1:-1].split(", ")
+                    else:
+                        print(
+                            "Invalid input: Dependents must be surrounded by brackets. Please try again."
+                        )
+                        valid = False
+                if det[0] == "{" and det[-1] == "}":
+                    det = det[1:-1].split(", ")
+                else:
+                    print(
+                        "Invalid input: Determinant must be surrounded by brackets. Please try again."
+                    )
+                    valid = False
+                fd_attrs = det[:]
+                for dep_set in deps:
+                    fd_attrs += dep_set
+                for attr in fd_attrs:
+                    if not attr in [x[0] for x in self.attributes]:
+                        print(
+                            "Error: Attribute in functional dependency not present in attribute set. Please try again."
+                        )
+                        valid = False
+            if valid:
+                self.fds.append(FunctionalDependency(det, deps))
+                print(f"The relation now has the following Functional Dependencies:")
+                for fd in self.fds:
+                    print(str(fd))
+
+            user_in = input("Type a multi-valued dependency or 'q':\n")
+        mvds = []
+        for fd in self.fds:
+            if len(fd.dependents) > 1:
+                mvds.append(fd)
+        # If there are no multi-valued dependencies, return here. Otherwise, proceed with requesting table data to verify.
+        if not mvds:
+            return new_tables
+        print("This relation has the following MVDs:")
+        for mvd in mvds:
+            print(str(mvd))
+        print("\nThe normalizer needs table data to verify.")
+        print(
+            "Please enter data values separated by ', ' that adhere to the following schema:"
+        )
+        for attr in [x[0] for x in self.attributes[:-1]]:
+            print(attr, end=", ")
+        print(self.attributes[-1][0])
+        print("Each tuple is on its own line. Enter 'q' instead to stop input.")
+        user_in = input()
+        while user_in != "q":
+            user_in = user_in.split(", ")
+            if len(user_in) == len(self.attributes):
+                self.data.append(user_in)
+            else:
+                print(
+                    "Incorrect number of attributes. Please match the following schema or enter q to stop input."
+                )
+                for attr in [x[0] for x in self.attributes[:-1]]:
+                    print(attr, end=", ")
+                print(self.attributes[-1][0])
+            user_in = input()
+        print("\nData has been added to the relation!")
+        print(str(self))
+
+        # Validate MVDs
+
+        # Separate MVDs
+        # Select which MVD to use
+        if len(mvds) > 1:
+            print(
+                "Which of the following MVDs should be prioritized for decomposition?"
+            )
+            for i in range(len(mvds)):
+                print(f"{i+1}: {str(mvds[i])}")
+            priority = input()
+            while not priority.isnumeric() or not int(priority) <= len(mvds):
+                print(f"Invalid input: enter a number between 1 and {len(mvds)}:")
+                priority = input()
+            priority = int(priority) - 1
+        else:
+            priority = 0
+
+        chosen_fd = self.fds[priority]
+
+        for dep_set in chosen_fd.dependents:
+            new_name = ""
+            for attr in chosen_fd.determinant:
+                new_name += attr
+            for attr in dep_set:
+                new_name += attr
+            new_name += "Data"
+            new_attrs = chosen_fd.determinant[:] + dep_set
+
+            # Handle Data transfer:
+            used_attr_i = []
+            for i in range(len(self.attributes)):
+                if self.attributes[i][0] in new_attrs:
+                    used_attr_i.append(i)
+            new_data = []
+            for tuple in self.data:
+                new_tuple = []
+                for i in used_attr_i:
+                    new_tuple.append(tuple[i])
+                duplicate = False
+                for i in range(len(new_data)):
+                    if set(new_tuple) == set(new_data[i]):
+                        duplicate = True
+                        break
+                if not duplicate:
+                    new_data.append(new_tuple)
+
+            # Add data type info to attributes
+            for j in range(len(new_attrs)):
+                loc = [x[0] for x in self.attributes].index(new_attrs[j])
+                new_attrs[j] = [new_attrs[j], self.attributes[loc][1]]
+            for tuple in new_data:
+                print(tuple)
+            new_tables.append(
+                Relation(
+                    name=new_name,
+                    attrs=new_attrs,
+                    prim_key=[x[0] for x in new_attrs],
+                    can_keys=[],
+                    mv_attrs=[],
+                    fds=[],
+                    data=new_data,
+                )
+            )
+            print(f"Created\n{new_tables[-1]}")
         return new_tables
 
     def five_nf(self) -> list[Self]:
@@ -610,7 +749,15 @@ def interpret_input(input_filename: str) -> Relation:
             else:
                 print("Error: Determinant must be surrounded by brackets.")
                 sys.exit()
-
+            fd_attrs = det[:]
+            for dep_set in deps:
+                fd_attrs += dep_set
+            for attr in fd_attrs:
+                if not attr in [x[0] for x in attributes]:
+                    print(
+                        "Error: Attribute in functional dependency not present in attribute set."
+                    )
+                    sys.exit()
             fds.append(FunctionalDependency(det, deps))
     schema.close()
     table = Relation(name, attributes, primary_key, candidate_keys, mv_attrs, fds=fds)
@@ -623,6 +770,19 @@ def output_results(filename: str, tables: list[Relation]) -> None:
     for i in range(len(tables)):
         dest.write(str(tables[i]) + "\n\n")
     dest.close()
+
+
+def remove_redundant_relations(tables: list[Relation]) -> list[Relation]:
+    attr_sets: list[list[str]] = [[x[0] for x in tables[-1].attributes]]
+    non_dupes: list[Relation] = [tables[-1]]
+    for i in range(len(tables) - 2, 0, -1):
+        attrs = [[x[0] for x in tables[-1].attributes]]
+        if attrs in attr_sets:
+            tables.pop(i)
+        else:
+            non_dupes.append(tables[i])
+            attrs.append(attrs)
+    return tables
 
 
 if __name__ == "__main__":
@@ -638,6 +798,7 @@ if __name__ == "__main__":
                 can_keys=[],
                 mv_attrs=["attr2"],
                 fds=[FunctionalDependency(["attr1"], [["attr2"]])],
+                data=[],
             )
         )
         sys.exit()
@@ -645,6 +806,7 @@ if __name__ == "__main__":
         "Thank you for using the RDBMS Normalizer!\nPlease note that input file format must match the provided example inputs."
     )
     tables: list[Relation] = []
+    table_attr_sets: list[list[str]] = []
     input_filename = sys.argv[1]
     tables.append(interpret_input(input_filename))
     print(tables[0])
@@ -685,17 +847,28 @@ if __name__ == "__main__":
         #     if len(new_tables):
         #         tables += new_tables
 
+    for table in tables:
+        my_attrs = [x[0] for x in table.attributes]
+        if not my_attrs in table_attr_sets:
+            table_attr_sets.append(my_attrs)
+        else:
+            tables.pop(tables.index(table))
+
     if user_in in ["4NF", "5NF"]:
-        print("Time for Fouth Normal Form...")
+        print("Time for Fourth Normal Form...")
         tables_to_remove = []
         for x in tables:
             new_tables = x.four_nf()
             if len(new_tables):
-                tables += new_tables
+                for table in new_tables:
+                    my_attrs = [x[0] for x in table.attributes]
+                    if not my_attrs in table_attr_sets:
+                        tables += new_tables
                 tables_to_remove.append(tables.index(x))
         tables_to_remove.sort(reverse=True)
         for i in tables_to_remove:
             tables.pop(i)
+        tables = remove_redundant_relations(tables)
 
     if user_in in ["5NF"]:
         print("Time for Fifth Normal Form...")
