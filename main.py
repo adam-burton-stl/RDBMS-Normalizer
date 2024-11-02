@@ -47,7 +47,10 @@ class FunctionalDependency:
         output = "{"
         for det in self.determinant[:-1]:
             output += det + ", "
-        output += self.determinant[-1] + "} -> {"
+        if len(self.dependents) == 1:
+            output += self.determinant[-1] + "} -> {"
+        else:
+            output += self.determinant[-1] + "} ->> {"
         if len(self.dependents) == 1:
             for dep in self.dependents[0][:-1]:
                 output += dep + ", "
@@ -806,7 +809,6 @@ if __name__ == "__main__":
         "Thank you for using the RDBMS Normalizer!\nPlease note that input file format must match the provided example inputs."
     )
     tables: list[Relation] = []
-    table_attr_sets: list[list[str]] = []
     input_filename = sys.argv[1]
     tables.append(interpret_input(input_filename))
     print(tables[0])
@@ -847,16 +849,18 @@ if __name__ == "__main__":
         #     if len(new_tables):
         #         tables += new_tables
 
-    for table in tables:
-        my_attrs = [x[0] for x in table.attributes]
+    # Remove duplicate tables
+    table_attr_sets: list[list[str]] = []
+    for i in range(len(tables) - 1, 0, -1):
+        my_attrs = [x[0] for x in tables[i].attributes]
         if not my_attrs in table_attr_sets:
             table_attr_sets.append(my_attrs)
         else:
-            tables.pop(tables.index(table))
+            tables.pop(i)
 
     if user_in in ["4NF", "5NF"]:
         print("Time for Fourth Normal Form...")
-        tables_to_remove = []
+        old_tables = []
         for x in tables:
             new_tables = x.four_nf()
             if len(new_tables):
@@ -864,9 +868,9 @@ if __name__ == "__main__":
                     my_attrs = [x[0] for x in table.attributes]
                     if not my_attrs in table_attr_sets:
                         tables += new_tables
-                tables_to_remove.append(tables.index(x))
-        tables_to_remove.sort(reverse=True)
-        for i in tables_to_remove:
+                old_tables.append(tables.index(x))
+        old_tables.sort(reverse=True)
+        for i in old_tables:
             tables.pop(i)
         tables = remove_redundant_relations(tables)
 
@@ -881,14 +885,20 @@ if __name__ == "__main__":
                 tables += new_tables
 
     # Duplicate checking:
-    if len(tables) > 1:
-        attr_sets = [set([x[0] for x in tables[-1].attributes])]
-        for i in range(len(tables) - 2, 0, -1):
-            attrs = set([x[0] for x in tables[i].attributes])
-            if attrs in attr_sets:
-                tables.pop(i)
-            else:
-                attr_sets.append(attrs)
+    # Remove duplicate tables
+    table_attr_sets: list[set[str]] = []
+    for i in range(len(tables) - 1, -1, -1):
+        print("Curr attr sets")
+        for attrs in table_attr_sets:
+            print(attrs)
+        my_attrs = [x[0] for x in tables[i].attributes]
+        print(my_attrs, "?")
+        if not (set(my_attrs) in table_attr_sets):
+            table_attr_sets.append(set(my_attrs))
+            print("Added to set")
+        else:
+            tables.pop(i)
+            print("Nope")
 
     output_name = "normalized_schema.txt"
     if len(sys.argv) > 2:
