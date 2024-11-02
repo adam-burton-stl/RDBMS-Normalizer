@@ -159,6 +159,7 @@ class Relation:
             if self.multivalued_attributes[i] in [x[0] for x in self.attributes]:
                 new_title = self.multivalued_attributes[i] + "Data"
                 new_prim = []
+                new_can = []
                 new_attrs = []
                 new_fds = []
                 # if removed attribute is alone in a functional dependency, separate based on the dependency
@@ -195,19 +196,26 @@ class Relation:
                     new_fds += transferred_fds
                     for j in range(len(self.fds)):
                         if self.fds[j].is_dep(self.multivalued_attributes[i]):
-                            new_fds.append(
-                                FunctionalDependency(
-                                    self.fds[j].determinant,
-                                    [[self.multivalued_attributes[i]]],
-                                )
-                            )
+                            # new_fds.append(
+                            #     FunctionalDependency(
+                            #         self.fds[j].determinant,
+                            #         [[self.multivalued_attributes[i]]],
+                            #     )
+                            # )
                             self.fds[j].remove_dep(self.multivalued_attributes[i])
+                for key in self.candidate_keys:
+                    transferable = True
+                    for attr in key:
+                        if attr not in [x[0] for x in new_attrs]:
+                            transferable = False
+                    if transferable:
+                        new_can.append(key)
                 new_tables.append(
                     Relation(
                         new_title,
                         new_attrs,
                         new_prim,
-                        can_keys=[],
+                        can_keys=new_can,
                         mv_attrs=[],
                         fds=new_fds,
                     )
@@ -216,6 +224,12 @@ class Relation:
         fds_to_remove.sort(reverse=True)
         for i in range(len(fds_to_remove)):
             self.fds.pop(fds_to_remove[i])
+
+        for i in range(len(self.candidate_keys) - 1, 0, -1):
+            for attr in self.candidate_keys[i]:
+                if attr not in [x[0] for x in self.attributes]:
+                    self.candidate_keys.pop(i)
+
         return new_tables
 
     def two_nf(self) -> list[Self]:
@@ -224,7 +238,9 @@ class Relation:
         new_tables = []
         fds_to_remove = []
         removed_attributes = []
-
+        prime_attributes = self.primary_key[:]
+        for key in self.candidate_keys:
+            prime_attributes += key
         # TODO: Incorporate candidate keys as prime attributes
         # TODO: remove attributes from FD instead of killing the whole FD??
 
@@ -232,19 +248,23 @@ class Relation:
             affected_attrs = []
             # If the FD's determinant contains a prime attribute, but not the entire primary key...
             if (
-                self.fds[i].det_contains(self.primary_key)
-                and self.fds[i].determinant != self.primary_key
+                (len(self.fds[i].dependents) == 1)
+                and self.fds[i].det_contains(prime_attributes)
+                and not (
+                    self.fds[i].determinant == self.primary_key
+                    or self.fds[i].determinant in self.candidate_keys
+                )
             ):
-                print(f"FD {self.fds[i]} has a prime attribute determinant")
+                print(f"FD {self.fds[i]} has a partial prime attribute determinant")
+                # try block because functional dependencies aren't removed until the end
                 try:
                     # Locate non-prime attributes in the dependent of the FD
-                    for j in range(len(self.fds[i].dependents)):
-                        for dep in self.fds[i].dependents[j]:
-                            if dep not in self.primary_key:
-                                affected_attrs.append(dep)
-                                print(
-                                    f"!!! PFD DETECTED in {self.name} for attribute {dep}!!!"
-                                )
+                    for attr in self.fds[i].dependents[0]:
+                        if attr not in prime_attributes:
+                            affected_attrs.append(attr)
+                            print(
+                                f"!!! PFD DETECTED in {self.name} for attribute {attr}!!!"
+                            )
                     # If non-prime attributes were found, remove these attributes and create a new table.
                     if len(affected_attrs):
                         new_name = ""
@@ -289,12 +309,20 @@ class Relation:
                                         f"Transferring {str(fd)} from {self.name} to {new_name}"
                                     )
                                     break
+                        new_can = []
+                        for key in self.candidate_keys:
+                            transferable = True
+                            for attr in key:
+                                if attr not in [x[0] for x in new_attrs]:
+                                    transferable = False
+                            if transferable:
+                                new_can.append(key)
                         new_tables.append(
                             Relation(
                                 name=new_name,
                                 attrs=new_attrs,
                                 prim_key=self.fds[i].determinant[:],
-                                can_keys=[],
+                                can_keys=new_can,
                                 mv_attrs=[],
                                 fds=new_fds,
                             )
@@ -305,6 +333,11 @@ class Relation:
         fds_to_remove.sort(reverse=True)
         for i in range(len(fds_to_remove)):
             self.fds.pop(fds_to_remove[i])
+
+        for i in range(len(self.candidate_keys) - 1, 0, -1):
+            for attr in self.candidate_keys[i]:
+                if attr not in [x[0] for x in self.attributes]:
+                    self.candidate_keys.pop(i)
         return new_tables
 
     def three_nf(self) -> list[Self]:
